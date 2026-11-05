@@ -1,0 +1,19 @@
+{
+  "name": "guinness-finder",
+  "version": "0.1.0",
+  "description": "Find hotels, bars, pubs and restaurants on Google Maps and check whether they serve Guinness.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "mock": "node src/server.js --mock",
+    "test": "node --test \"test/*.test.js\"",
+    "test:e2e": "node --test test/e2e/ui.e2e.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "express": "^5.2.1"
+  }
+}

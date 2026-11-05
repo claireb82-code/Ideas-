@@ -1,21 +1,51 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) and other AI assistants when working with code in this repository.
+Guidance for Claude Code and other AI assistants working in this repository.
 
-## Repository status
+## What this is
 
-This repository is currently **empty** — it has no commits, no source files, and no defined structure yet. There is no codebase, build system, test suite, or dependency manifest to describe.
+**Guinness Finder** - finds hotels/bars/pubs/restaurants via Google Places, checks each venue's
+website (and Google reviews) for mentions of Guinness, and shows colour-coded pins on a Google Map.
+Start with `README.md`; design decisions and the API contract are in `docs/ARCHITECTURE.md`; test
+strategy and known gaps are in `docs/TESTING.md`.
 
-This file is a placeholder. Once real content is added (source code, docs, config), update the sections below to reflect the actual project.
+## Commands
 
-## How to update this file
+```bash
+npm install
+npm test             # unit + integration, no network/browser (must stay that way)
+npm run test:e2e     # Chromium UI tests; set PLAYWRIGHT_PATH if playwright isn't resolvable
+npm run mock         # run offline with sample data - no Google Places key needed
+npm start            # real data; needs .env (see .env.example)
+```
 
-When this repository gains its first real content, revisit this file and fill in:
+Node 22+. ES modules. Only runtime deps: `express`, `cheerio`.
 
-- **Project overview** — what the project is and its purpose.
-- **Codebase structure** — key directories/files and how they relate.
-- **Development workflow** — how to install dependencies, run the project locally, build, lint, and test (exact commands).
-- **Conventions** — coding style, naming, commit message format, and any patterns specific to this repo.
-- **Architecture notes** — non-obvious design decisions, data flow, or integration points worth knowing before making changes.
+## Layout
 
-Until then, there are no established conventions or workflows to follow beyond standard git practices (feature branches, descriptive commit messages).
+- `src/` server: `server.js` (createApp factory), `places.js` (Google client), `discover.js` (tiling),
+  `guinness.js` (crawler/detector), `safe-fetch.js` (SSRF-safe fetch), `cache.js`, `mock.js`, `config.js`
+- `public/` browser UI: `app.js` (Maps/DOM glue), `lib.js` (pure helpers, unit-tested), `style.css`
+- `test/` node:test suites; `test/e2e/` Playwright UI tests with a stubbed `google.maps`
+
+## Conventions and rules
+
+- **Document and test as you go.** Every behaviour change needs a test; a bug fix needs a failing
+  `regression:` test first. Update `docs/` when behaviour, API, statuses or config change.
+- **Honest statuses.** Never report "no" when we merely couldn't read a site - use `unknown`. Keep the
+  five-status model (`menu`, `website`, `reviews`, `none`, `unknown`) + transient `pending`.
+- **Untrusted data.** Venue names/snippets/URLs come from third parties. In the UI use `textContent`
+  and only http(s) links - never `innerHTML` with external data. Server fetches of venue sites must go
+  through `safeFetch` (SSRF protection).
+- **Keys.** The Places key is server-only. `/api/config` may expose only the browser key.
+- **Cost guards** (`MAX_SEARCH_KM`, `MAX_PLACES_REQUESTS`, concurrency cap, cache) exist to avoid
+  surprise Google bills - don't remove them casually.
+- Google terms: Places data must be shown on a Google map; cache only our own derived results (keyed by
+  place ID), not Google content.
+- `hidden` elements: keep the `[hidden]{display:none!important}` rule in `style.css` (a past bug).
+- Use feature branches and descriptive commit messages.
+
+## Known gaps
+
+Live Google API calls have not been run against real keys (only fake-fetch tests); PDF/image menus are not
+read; robots.txt is not honoured. See `docs/TESTING.md` and the roadmap in `docs/ARCHITECTURE.md`.

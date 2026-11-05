@@ -1,0 +1,76 @@
+:root {
+  --bg: #faf7f2; --panel: #ffffff; --text: #1d1b18; --muted: #6a645b; --line: #e3ddd2;
+  --accent: #1d1b18; --accent-text: #f5e6c4;
+  --menu: #137a43; --website: #0f7a8a; --reviews: #b86e00; --none: #77716a; --unknown: #a09a90; --pending: #5b6b7a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14120f; --panel: #1d1a16; --text: #f1ebe0; --muted: #a89f90; --line: #3a342c;
+    --accent: #f5e6c4; --accent-text: #1d1b18;
+    --menu: #3fcf85; --website: #4cc3d3; --reviews: #f0a53a; --none: #9d968b; --unknown: #7d776d; --pending: #8ea1b3;
+  }
+}
+* { box-sizing: border-box; }
+/* Author display rules (e.g. .fatal{display:grid}) would otherwise override the hidden attribute. */
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+
+.app { display: grid; grid-template-columns: 380px 1fr; height: 100vh; }
+.panel { background: var(--panel); border-right: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+.tagline { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+
+.row { display: flex; gap: 8px; }
+input[type="search"] { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; }
+input[type="search"]:focus-visible, button:focus-visible, .item:focus-visible { outline: 2px solid var(--website); outline-offset: 2px; }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); padding: 9px 12px; background: var(--bg); color: var(--text); }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; padding: 11px; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.status { margin: 0; font-size: 13px; color: var(--muted); min-height: 1.4em; }
+.status.error { color: #c0392b; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px; background: transparent; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--muted)); border: 1px solid rgba(255,255,255,.7); }
+.chip .n { opacity: .75; font-variant-numeric: tabular-nums; }
+
+.list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 120px; border-top: 1px solid var(--line); }
+.item { display: flex; gap: 10px; width: 100%; text-align: left; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; align-items: flex-start; }
+.item:hover, .item.active { background: color-mix(in srgb, var(--website) 10%, transparent); }
+.item .name { font-weight: 600; }
+.item .meta { color: var(--muted); font-size: 13px; }
+.empty { padding: 20px 4px; color: var(--muted); font-size: 14px; }
+.fineprint { margin: 0; font-size: 12px; color: var(--muted); }
+
+/* Status badge + map pin share colours and glyphs so colour is never the only signal. */
+.pin { --c: var(--unknown); width: 28px; height: 28px; border-radius: 50%; background: var(--c); color: #fff; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); display: grid; place-items: center; font: 700 14px/1 system-ui, sans-serif; cursor: pointer; }
+.pin.active { transform: scale(1.25); z-index: 10; }
+.pin.pending { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .pin.pending { animation: none; } }
+.s-menu { --c: var(--menu); } .s-website { --c: var(--website); } .s-reviews { --c: var(--reviews); }
+.s-none { --c: var(--none); } .s-unknown { --c: var(--unknown); } .s-pending { --c: var(--pending); }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #fff; background: var(--c); padding: 2px 8px; border-radius: 999px; }
+.item .pin { width: 22px; height: 22px; font-size: 12px; flex: none; box-shadow: none; }
+
+.mapwrap { position: relative; min-height: 0; }
+#map { position: absolute; inset: 0; }
+.fatal { position: absolute; inset: 0; display: grid; place-content: center; padding: 24px; text-align: center; background: var(--bg); gap: 8px; }
+.fatal code { background: var(--panel); padding: 2px 6px; border-radius: 4px; }
+
+/* Info window content (rendered by Google into a light card regardless of theme). */
+.iw { color: #1d1b18; max-width: 280px; font: 14px/1.4 system-ui, sans-serif; }
+.iw h3 { margin: 0 0 2px; font-size: 16px; }
+.iw .m { color: #6a645b; font-size: 13px; margin-bottom: 6px; }
+.iw blockquote { margin: 8px 0; padding-left: 8px; border-left: 3px solid #d8c9a6; font-style: italic; font-size: 13px; }
+.iw .note { font-size: 12px; color: #6a645b; margin: 6px 0; }
+.iw a { color: #0b5cad; margin-right: 10px; }
+
+@media (max-width: 800px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 58vh 42vh; height: 100vh; }
+  .mapwrap { order: -1; }
+  .panel { border-right: 0; border-top: 1px solid var(--line); overflow-y: auto; }
+  .list { flex: none; max-height: 40vh; }
+}
