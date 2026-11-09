@@ -4,33 +4,49 @@ This file provides guidance to Claude Code (claude.ai/code) and other AI assista
 
 ## Project overview
 
-**Winter Goals** — a mobile-friendly, installable (PWA) browser app for tracking goals over the winter season. No backend, no build step, no dependencies: all data lives in the browser's `localStorage`.
+**Winter Goals** — a mobile-friendly, installable (PWA) browser app for tracking goals over the winter season. The UI is a single static page. Goals live in the browser's `localStorage`; optional cross-device sync goes through one Vercel serverless function backed by a private Vercel Blob store.
+
+Hosted on Vercel (team `claireb82`, project `winter-goals`, production branch `main`, https://winter-goals.vercel.app). Every push to `main` auto-deploys.
 
 ## Codebase structure
 
-- `index.html` — the entire app (inline CSS + JS). Sections in the script: helpers, state, progress, render, goal actions, goal form, settings, lifecycle.
-- `manifest.webmanifest` — PWA manifest (standalone display, icon).
-- `icon.svg` — app icon.
-- `sw.js` — network-first service worker so the app works offline once visited. Bump `CACHE` if the cached asset list changes.
+- `index.html` — the entire front end (inline CSS + JS). Script sections: helpers, state (normalisation, save), progress, render, goal actions, goal form, settings, sync, lifecycle.
+- `api/sync.js` — Vercel Node function: `GET`/`POST /api/sync`. Reads/writes one JSON blob per sync code, merging on write with an ETag (`ifMatch`) retry loop.
+- `api/_merge.js` — pure merge logic (no I/O). The leading underscore keeps Vercel from exposing it as a route.
+- `package.json` — only dependency is `@vercel/blob` (pinned); `"type": "module"`.
+- `manifest.webmanifest`, `icon.svg` — PWA manifest and icon.
+- `sw.js` — network-first service worker (offline support). Never caches `/api/`.
 
 ## Development workflow
 
-- Run locally: `python3 -m http.server 8000` in the repo root, then open `http://localhost:8000` (the service worker only registers over http(s), not `file://`).
-- There is no build, lint, or test tooling. Verify changes in a mobile-sized viewport (e.g. 390×844) and check the console for errors.
-- Deploy: any static host works (GitHub Pages, Vercel, Netlify). Serve the repo root.
+- Static UI only: `python3 -m http.server 8000`, open `http://localhost:8000`. `/api/sync` doesn't exist there, so sync will show "Couldn't reach the server"; everything else works. (The service worker registers only over http(s), not `file://`.)
+- Full stack locally: `npx vercel dev` (needs `vercel link` and `vercel env pull` for `BLOB_READ_WRITE_TOKEN`).
+- No build step, lint or test runner. To test sync without a backend, mock `**/api/sync` in Playwright using `mergeDocs` from `api/_merge.js` (this is how it was verified with two simulated devices). Check a mobile viewport (390×844) and the console.
+- Deploy: push to `main`. Vercel env var `BLOB_READ_WRITE_TOKEN` comes from the Blob store `winter-goals-sync` (private, iad1) connected to the project.
 
 ## Data model
 
-Stored under `localStorage['winter-goals-v1']` as `{ season: {start, end}, goals: [...] }` (dates are local `YYYY-MM-DD`). A goal is one of three types:
+Local state is stored under `localStorage['winter-goals-v1']`:
+`{ season: {start, end}, seasonUpdated, goals: [...], deleted: { [goalId]: ms } }` (dates are local `YYYY-MM-DD`; times are epoch ms).
 
-- `task` — one-off, `done: boolean`.
+A goal has `id`, `title`, `type`, `emoji`, `created`, `updated` plus the type's fields:
+
+- `task` — `done`.
 - `count` — `value` toward `target`, with `unit` and `step` (amount added per tap).
-- `habit` — `log: { 'YYYY-MM-DD': true }` check-ins, `perWeek` target; progress is the rolling last 7 days.
+- `habit` — `log: { 'YYYY-MM-DD': true }` check-ins and a `perWeek` target; progress is the rolling last 7 days.
 
-Overall progress is the average of each goal's progress (0–1). If the stored shape changes, bump the storage key or migrate in `load()`.
+Overall progress is the average of each goal's progress (0–1). All data entering the app (storage, import, sync) goes through `normState`/`normGoal`, which coerces and bounds every field. If the shape changes, extend those and bump the storage key or migrate in `load()`.
+
+## Sync design
+
+- Opt-in. A device generates a random 128-bit hex **sync code** (stored in `localStorage['winter-goals-sync']`); other devices join by pasting the code or opening `…/#sync=CODE` (the fragment is never sent to the server). The code is the only credential: it goes in the `x-sync-code` header, and the server stores data at `sync/<sha256(code)>.json` in a private blob.
+- Each sync POSTs the device's full document; the server merges it with what it holds and returns the result, which the client adopts (unless the user changed something mid-request, in which case it syncs again).
+- Merge rules (`api/_merge.js`): per goal id, newest `updated` wins; deletions are tombstones in `deleted` and beat older edits; newest `seasonUpdated` wins for the season. So **every mutation must call `touch(goal)` (or set a tombstone) and then `save()`**; otherwise the change won't win a merge.
+- Sync runs on load, ~1s after changes, when the tab regains focus, when back online, and every 60s while visible.
+- Known limit: conflict resolution is per goal, so two devices editing the *same goal* offline at the same time keep only the newer edit.
 
 ## Conventions
 
-- Keep it dependency-free and single-page; mobile first (44px minimum tap targets, safe-area insets, light/dark via `prefers-color-scheme`).
+- Keep the front end dependency-free and a single page; mobile first (44px minimum tap targets, safe-area insets, light/dark via `prefers-color-scheme`).
 - Escape all user text with `esc()` before putting it in `innerHTML`.
 - Feature branches and descriptive commit messages.

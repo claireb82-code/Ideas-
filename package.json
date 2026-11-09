@@ -1,0 +1,13 @@
+{
+  "name": "winter-goals",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mobile-friendly winter goal tracker with optional cross-device sync.",
+  "dependencies": {
+    "@vercel/blob": "2.9.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

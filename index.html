@@ -166,6 +166,7 @@
     border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 1rem;
   }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid2 > *, label.field > input { min-width: 0; }
   .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
   .seg input { position: absolute; opacity: 0; pointer-events: none; }
   .seg label {
@@ -187,6 +188,15 @@
   .sheet-actions { display: flex; gap: 10px; margin-top: 6px; }
   .sheet-actions .btn { flex: 1; }
   .hint { color: var(--muted); font-size: .85rem; margin: -6px 0 14px; }
+  .sync { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 16px; }
+  .sync h3 { margin: 0 0 6px; font-size: 1.05rem; }
+  .sync .hint { margin: 0 0 12px; }
+  .sync .stack { display: grid; gap: 10px; }
+  .sync input.code {
+    letter-spacing: .04em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .95rem;
+  }
+  .sync-row { display: flex; gap: 8px; }
+  .sync-row input { flex: 1; min-width: 0; min-height: 46px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
   .hidden { display: none !important; }
 
   .toast {
@@ -295,7 +305,37 @@
         <input type="date" id="sEnd">
       </label>
     </div>
-    <p class="hint">Your goals are saved on this device only. Export a backup now and then.</p>
+
+    <section class="sync" aria-labelledby="syncTitle">
+      <h3 id="syncTitle">Sync across devices</h3>
+      <p class="hint" id="syncStatus"></p>
+
+      <div id="syncOffBox" class="stack">
+        <button class="btn primary wide" id="syncOn">Turn on sync</button>
+        <button class="btn wide" id="syncLink">I already have a sync code</button>
+        <div id="linkBox" class="hidden">
+          <div class="sync-row">
+            <input id="linkInput" placeholder="Paste sync code or link" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Sync code">
+            <button class="btn primary" id="linkGo">Link</button>
+          </div>
+          <p class="hint" style="margin:8px 0 0">Goals already on this device will be merged with your synced goals.</p>
+        </div>
+      </div>
+
+      <div id="syncOnBox" class="stack hidden">
+        <label class="field" style="margin:0">Your sync code — keep it private
+          <input class="code" id="syncCode" readonly aria-describedby="syncStatus">
+        </label>
+        <div class="sheet-actions" style="margin:0">
+          <button class="btn" id="syncShare">Share link</button>
+          <button class="btn" id="syncNow">Sync now</button>
+        </div>
+        <p class="hint" style="margin:0">On your other device: open this site, then Settings → “I already have a sync code”, or just open the shared link.</p>
+        <button class="btn danger wide" id="syncOffBtn">Turn off sync on this device</button>
+      </div>
+    </section>
+
+    <p class="hint" style="margin-top:16px">Export a backup now and then, just in case.</p>
     <div class="sheet-actions" style="margin-bottom:10px">
       <button class="btn" id="exportBtn">Export backup</button>
       <button class="btn" id="importBtn">Import backup</button>
@@ -347,17 +387,75 @@
     return { start: `${y}-12-01`, end: `${y + 1}-03-20` };
   }
 
+  // Every goal carries an `updated` timestamp and deletions are remembered in
+  // `deleted`, which is what lets two devices merge their changes when syncing.
+  const validKey = (k) => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
+  const num = (v, d, min) => { v = Number(v); return Number.isFinite(v) ? Math.max(min === undefined ? -Infinity : min, v) : d; };
+
+  function normGoal(g) {
+    if (!g || typeof g !== 'object' || typeof g.id !== 'string' || !g.id) return null;
+    const log = {};
+    if (g.log && typeof g.log === 'object') for (const k of Object.keys(g.log)) if (validKey(k) && g.log[k]) log[k] = true;
+    return {
+      id: g.id.slice(0, 64),
+      title: String(g.title || 'Untitled').slice(0, 80),
+      type: ['task', 'count', 'habit'].includes(g.type) ? g.type : 'task',
+      emoji: String(g.emoji || '❄️').slice(0, 8),
+      created: validKey(g.created) ? g.created : todayKey(),
+      updated: num(g.updated, 0, 0) || Date.now(),
+      done: !!g.done,
+      value: num(g.value, 0, 0),
+      target: num(g.target, 1, 0.1),
+      step: num(g.step, 1, 0.1),
+      unit: String(g.unit || '').slice(0, 16),
+      perWeek: Math.min(7, Math.max(1, Math.round(num(g.perWeek, 3)))),
+      log,
+    };
+  }
+
+  function normState(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const s = r.season && validKey(r.season.start) && validKey(r.season.end) && r.season.start <= r.season.end ? r.season : defaultSeason();
+    const seen = new Set();
+    const goals = (Array.isArray(r.goals) ? r.goals : []).map(normGoal)
+      .filter((g) => g && !seen.has(g.id) && seen.add(g.id)).slice(0, 300);
+    const deleted = {};
+    if (r.deleted && typeof r.deleted === 'object') {
+      for (const [id, t] of Object.entries(r.deleted)) if (Number.isFinite(Number(t))) deleted[id.slice(0, 64)] = Number(t);
+    }
+    return { season: { start: s.start, end: s.end }, seasonUpdated: num(r.seasonUpdated, 0, 0), goals, deleted };
+  }
+
   function load() {
-    try {
-      const raw = JSON.parse(localStorage.getItem(KEY));
-      if (raw && Array.isArray(raw.goals)) return { season: raw.season || defaultSeason(), goals: raw.goals };
-    } catch (e) { /* ignore */ }
-    return { season: defaultSeason(), goals: [] };
+    try { return normState(JSON.parse(localStorage.getItem(KEY))); }
+    catch (e) { return normState(null); }
   }
   let state = load();
+
+  const touch = (g) => { g.updated = Date.now(); };
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); return true; }
+    catch (e) { return false; }
+  }
+  // Call after any change the user makes: saves locally and queues a sync.
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); }
-    catch (e) { toast('Could not save — storage is full or blocked'); }
+    rev++;
+    if (!persist()) toast('Could not save — storage is full or blocked');
+    scheduleSync();
+  }
+  // Replace everything (import / erase). Anything that disappears is marked deleted
+  // so the change also reaches your other devices.
+  function replaceAll(next) {
+    const now = Date.now();
+    const keep = new Set(next.goals.map((g) => g.id));
+    const deleted = { ...next.deleted };
+    for (const g of state.goals) if (!keep.has(g.id)) deleted[g.id] = now;
+    next.goals.forEach((g) => { g.updated = now; });
+    next.seasonUpdated = now;
+    next.deleted = deleted;
+    state = next;
+    save();
+    render();
   }
 
   /* ---------- progress ---------- */
@@ -444,7 +542,7 @@
 
     return `<section class="goal ${done ? 'done' : ''}">
       <button class="goal-head" data-a="edit" data-id="${g.id}" aria-label="Edit ${esc(g.title)}">
-        <span class="badge" aria-hidden="true">${g.emoji || '❄️'}</span>
+        <span class="badge" aria-hidden="true">${esc(g.emoji || '❄️')}</span>
         <span class="grow"><span class="goal-title">${esc(g.title)}</span><br><span class="goal-meta">${meta}</span></span>
         <span class="chev" aria-hidden="true">⋯</span>
       </button>
@@ -503,6 +601,7 @@
       const k = btn.dataset.day;
       if (g.log[k]) delete g.log[k]; else g.log[k] = true;
     }
+    touch(g);
     celebrateIfComplete(g, before);
     save();
     render();
@@ -560,11 +659,14 @@
     } else if (type === 'habit') {
       fields.perWeek = parseInt($('#fPerWeek').value, 10) || 1;
     }
-    if (editingId) {
-      const g = find(editingId);
-      Object.assign(g, fields);
+    const existing = editingId && find(editingId);
+    if (existing) {
+      Object.assign(existing, fields);
+      touch(existing);
     } else {
-      state.goals.push({ id: uid(), created: todayKey(), value: 0, done: false, log: {}, ...fields });
+      // (also covers a goal that was deleted on another device while this sheet was open)
+      const g = normGoal({ id: uid(), created: todayKey(), ...fields });
+      state.goals.push(g);
     }
     save();
     sheet.close();
@@ -576,6 +678,7 @@
     const g = find(editingId);
     if (g && confirm(`Delete “${g.title}”? This can't be undone.`)) {
       state.goals = state.goals.filter((x) => x.id !== editingId);
+      state.deleted[editingId] = Date.now();
       save();
       sheet.close();
       render();
@@ -592,11 +695,17 @@
   $('#openSettings').addEventListener('click', () => {
     $('#sStart').value = state.season.start;
     $('#sEnd').value = state.season.end;
+    renderSync();
     settings.showModal();
   });
   function applySeason() {
     const s = $('#sStart').value, en = $('#sEnd').value;
-    if (s && en && s <= en) { state.season = { start: s, end: en }; save(); renderHero(); }
+    if (s && en && s <= en) {
+      state.season = { start: s, end: en };
+      state.seasonUpdated = Date.now();
+      save();
+      renderHero();
+    }
   }
   $('#sStart').addEventListener('change', applySeason);
   $('#sEnd').addEventListener('change', applySeason);
@@ -620,10 +729,8 @@
     try {
       const data = JSON.parse(await f.text());
       if (!data || !Array.isArray(data.goals)) throw new Error('bad file');
-      if (!confirm('Replace your current goals with this backup?')) return;
-      state = { season: data.season || defaultSeason(), goals: data.goals };
-      save();
-      render();
+      if (!confirm('Replace your current goals with this backup?' + (sync.code ? ' This also replaces them on your synced devices.' : ''))) return;
+      replaceAll(normState(data));
       settings.close();
       toast('Backup restored');
     } catch (err) {
@@ -631,17 +738,162 @@
     }
   });
   $('#resetBtn').addEventListener('click', () => {
-    if (confirm('Erase all goals and progress on this device?')) {
-      state = { season: defaultSeason(), goals: [] };
-      save();
-      render();
+    const msg = sync.code
+      ? 'Erase all goals and progress? Sync is on, so they will be erased on your other devices too.'
+      : 'Erase all goals and progress on this device?';
+    if (confirm(msg)) {
+      replaceAll(normState(null));
       settings.close();
     }
   });
 
+  /* ---------- sync ---------- */
+  // Optional. A random secret "sync code" identifies your data on the server
+  // (/api/sync). Each sync sends this device's data, the server merges it with what
+  // it holds (newest edit per goal wins) and sends the merged result back.
+  const SYNC_KEY = 'winter-goals-sync';
+  const CODE_RE = /^[0-9a-f]{32}$/;
+  let sync = { code: '', last: 0 };
+  try {
+    const s = JSON.parse(localStorage.getItem(SYNC_KEY));
+    if (s && CODE_RE.test(s.code)) sync = { code: s.code, last: Number(s.last) || 0 };
+  } catch (e) { /* ignore */ }
+  const saveSync = () => { try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch (e) { /* ignore */ } };
+
+  let rev = 0;            // bumped on every local change
+  let syncing = false, again = false, syncTimer = 0, lastRun = 0, syncMsg = '';
+
+  const fmtCode = (c) => c.match(/.{4}/g).join('-');
+  const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+  function parseCode(text) {
+    let t = String(text || '');
+    const i = t.toLowerCase().indexOf('sync=');
+    if (i >= 0) t = t.slice(i + 5);
+    const hex = t.toLowerCase().replace(/[^0-9a-f]/g, '');
+    return CODE_RE.test(hex) ? hex : null;
+  }
+  const shareLink = () => `${location.origin}${location.pathname}#sync=${fmtCode(sync.code)}`;
+
+  function renderSync() {
+    const on = !!sync.code;
+    $('#syncOffBox').classList.toggle('hidden', on);
+    $('#syncOnBox').classList.toggle('hidden', !on);
+    if (on) $('#syncCode').value = fmtCode(sync.code);
+    let status = 'Off — goals are saved on this device only.';
+    if (on) {
+      status = syncMsg || (sync.last
+        ? `Synced · last at ${new Date(sync.last).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+        : 'Not synced yet');
+    }
+    $('#syncStatus').textContent = status;
+  }
+
+  function adopt(doc) {
+    const next = normState(doc);
+    if (JSON.stringify(next) === JSON.stringify(state)) return;
+    state = next;
+    persist();
+    render();
+  }
+
+  function scheduleSync(delay = 1200) {
+    if (!sync.code) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => runSync(false), delay);
+  }
+
+  async function runSync(manual) {
+    if (!sync.code) return;
+    if (syncing) { again = true; return; }
+    if (!navigator.onLine) { syncMsg = 'Offline — will sync when you’re back online'; renderSync(); return; }
+    syncing = true;
+    lastRun = Date.now();
+    syncMsg = 'Syncing…';
+    renderSync();
+    const sentRev = rev;
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-sync-code': sync.code },
+        body: JSON.stringify({ doc: { v: 1, season: state.season, seasonUpdated: state.seasonUpdated, goals: state.goals, deleted: state.deleted } }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const { doc } = await res.json();
+      // If you changed something while the request was in flight, don't overwrite it —
+      // the follow-up sync below merges both.
+      if (rev === sentRev) adopt(doc); else again = true;
+      sync.last = Date.now();
+      saveSync();
+      syncMsg = '';
+      if (manual) toast('Synced');
+    } catch (e) {
+      syncMsg = 'Couldn’t reach the server — will retry';
+      if (manual) toast('Sync failed — check your connection');
+    } finally {
+      syncing = false;
+      renderSync();
+      if (again) { again = false; scheduleSync(300); }
+    }
+  }
+
+  function startLink(code) {
+    sync = { code, last: 0 };
+    saveSync();
+    $('#linkInput').value = '';
+    $('#linkBox').classList.add('hidden');
+    syncMsg = '';
+    renderSync();
+    runSync(true);
+  }
+
+  $('#syncOn').addEventListener('click', () => startLink(newCode()));
+  $('#syncLink').addEventListener('click', () => {
+    $('#linkBox').classList.toggle('hidden');
+    $('#linkInput').focus();
+  });
+  $('#linkGo').addEventListener('click', () => {
+    const code = parseCode($('#linkInput').value);
+    if (code) startLink(code); else toast('That code doesn’t look right');
+  });
+  $('#syncNow').addEventListener('click', () => runSync(true));
+  $('#syncShare').addEventListener('click', async () => {
+    const url = shareLink();
+    try {
+      if (navigator.share) { await navigator.share({ title: 'Winter Goals', text: 'Open this on your other device to link it', url }); return; }
+      await navigator.clipboard.writeText(url);
+      toast('Link copied');
+    } catch (e) {
+      if (e && e.name !== 'AbortError') { $('#syncCode').select(); toast('Copy the code instead'); }
+    }
+  });
+  $('#syncCode').addEventListener('focus', (e) => e.target.select());
+  $('#syncOffBtn').addEventListener('click', () => {
+    if (!confirm('Turn off sync on this device? Your goals stay here, and stay saved in the cloud under your code.')) return;
+    sync = { code: '', last: 0 };
+    saveSync();
+    syncMsg = '';
+    renderSync();
+  });
+
   /* ---------- lifecycle ---------- */
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    render();
+    if (sync.code && Date.now() - lastRun > 5000) runSync(false);
+  });
+  window.addEventListener('online', () => runSync(false));
+  setInterval(() => { if (!document.hidden && sync.code) runSync(false); }, 60000);
   render();
+  renderSync();
+  if (sync.code) scheduleSync(100);
+
+  // Opening a shared link (…/#sync=CODE) links this device.
+  const linkMatch = /sync=([0-9a-fA-F-]+)/.exec(location.hash);
+  if (linkMatch) {
+    const code = parseCode(linkMatch[1]);
+    history.replaceState(null, '', location.pathname + location.search);
+    if (code && code !== sync.code && confirm('Link this device to your synced goals? Goals already here will be merged in.')) startLink(code);
+  }
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

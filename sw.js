@@ -17,6 +17,7 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).pathname.startsWith('/api/')) return; // never cache the sync API
   e.respondWith(
     fetch(e.request)
       .then((res) => {
