@@ -331,6 +331,11 @@
           <button class="btn" id="syncNow">Sync now</button>
         </div>
         <p class="hint" style="margin:0">On your other device: open this site, then Settings → “I already have a sync code”, or just open the shared link.</p>
+        <button class="btn wide" id="restoreBtn">Restore an earlier version</button>
+        <div id="restoreBox" class="hidden">
+          <p class="hint" style="margin:0 0 8px" id="restoreHint"></p>
+          <div class="stack" id="restoreList"></div>
+        </div>
         <button class="btn danger wide" id="syncOffBtn">Turn off sync on this device</button>
       </div>
     </section>
@@ -867,6 +872,48 @@
     }
   });
   $('#syncCode').addEventListener('focus', (e) => e.target.select());
+
+  // Weekly restore points are kept by the server (api/sync.js). Restoring one replaces
+  // your goals everywhere, the same way importing a backup does.
+  const syncHeaders = () => ({ 'x-sync-code': sync.code });
+  $('#restoreBtn').addEventListener('click', async () => {
+    const box = $('#restoreBox'), listEl = $('#restoreList'), hint = $('#restoreHint');
+    if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+    listEl.innerHTML = '';
+    hint.textContent = 'Loading…';
+    box.classList.remove('hidden');
+    try {
+      const res = await fetch('/api/sync?backups=1', { headers: syncHeaders() });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const { backups } = await res.json();
+      if (!backups.length) {
+        hint.textContent = 'No restore points yet. One is saved automatically the first time your goals change each week.';
+        return;
+      }
+      hint.textContent = 'Pick a date. This replaces your goals on all synced devices with how they were then.';
+      listEl.innerHTML = backups.map((b) =>
+        `<button class="btn" data-date="${esc(b.date)}">${esc(parse(b.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }))}</button>`).join('');
+    } catch (e) {
+      hint.textContent = 'Couldn’t load restore points. Check your connection and try again.';
+    }
+  });
+  $('#restoreList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-date]');
+    if (!btn) return;
+    const label = btn.textContent;
+    if (!confirm(`Restore your goals as they were on ${label}? Anything changed since then will be replaced, on all your synced devices.`)) return;
+    try {
+      const res = await fetch('/api/sync?backup=' + encodeURIComponent(btn.dataset.date), { headers: syncHeaders() });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const { doc } = await res.json();
+      replaceAll(normState(doc));
+      $('#restoreBox').classList.add('hidden');
+      settings.close();
+      toast('Restored');
+    } catch (err) {
+      toast('Couldn’t restore that version');
+    }
+  });
   $('#syncOffBtn').addEventListener('click', () => {
     if (!confirm('Turn off sync on this device? Your goals stay here, and stay saved in the cloud under your code.')) return;
     sync = { code: '', last: 0 };

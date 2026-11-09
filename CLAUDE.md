@@ -43,6 +43,9 @@ Overall progress is the average of each goal's progress (0–1). All data enteri
 - Each sync POSTs the device's full document; the server merges it with what it holds and returns the result, which the client adopts (unless the user changed something mid-request, in which case it syncs again).
 - Merge rules (`api/_merge.js`): per goal id, newest `updated` wins; deletions are tombstones in `deleted` and beat older edits; newest `seasonUpdated` wins for the season. So **every mutation must call `touch(goal)` (or set a tombstone) and then `save()`**; otherwise the change won't win a merge.
 - Sync runs on load, ~1s after changes, when the tab regains focus, when back online, and every 60s while visible.
+- **Weekly restore points** (`maybeBackup` in `api/sync.js`): the first time the stored document changes at least 7 days after the newest restore point, the server saves the document *as it was before that change* to `backups/<sha256(code)>/YYYY-MM-DD.json` and keeps the newest 8. There's no cron job or secret; it's driven by sync writes, so nothing is saved while nothing changes. Failures are logged and never break a sync. The app lists and restores them via `GET /api/sync?backups=1` and `?backup=DATE` (Settings → "Restore an earlier version"); a restore goes through `replaceAll`, so it propagates to every device.
+- `GET /api/sync?health=1` is a read-only, code-free check that the function runs and the Blob store is reachable.
+- Testing the API: the server logic can be tested by copying `api/` next to an in-memory stub of `@vercel/blob` (get/put/list/del with etags) and faking `Date` to simulate weeks passing.
 - Known limit: conflict resolution is per goal, so two devices editing the *same goal* offline at the same time keep only the newer edit.
 
 ## Conventions
