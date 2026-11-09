@@ -29,6 +29,18 @@ const parse = (text) => {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
+  // Read-only health check (GET /api/sync?health=1): confirms the function runs and can
+  // reach the Blob store. Touches no user data and needs no code.
+  if (req.method === 'GET' && req.query && req.query.health !== undefined) {
+    try {
+      await get('sync/_health', { access: 'private', useCache: false });
+      return res.status(200).json({ ok: true, store: 'reachable' });
+    } catch (e) {
+      console.error('health check failed', e);
+      return res.status(500).json({ ok: false, store: 'unreachable' });
+    }
+  }
+
   const code = String(req.headers['x-sync-code'] || '').toLowerCase();
   if (!CODE_RE.test(code)) return res.status(401).json({ error: 'Invalid sync code' });
   const path = pathFor(code);
