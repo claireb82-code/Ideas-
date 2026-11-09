@@ -2,20 +2,35 @@
 
 This file provides guidance to Claude Code (claude.ai/code) and other AI assistants when working with code in this repository.
 
-## Repository status
+## Project overview
 
-This repository is currently **empty** — it has no commits, no source files, and no defined structure yet. There is no codebase, build system, test suite, or dependency manifest to describe.
+**Winter Goals** — a mobile-friendly, installable (PWA) browser app for tracking goals over the winter season. No backend, no build step, no dependencies: all data lives in the browser's `localStorage`.
 
-This file is a placeholder. Once real content is added (source code, docs, config), update the sections below to reflect the actual project.
+## Codebase structure
 
-## How to update this file
+- `index.html` — the entire app (inline CSS + JS). Sections in the script: helpers, state, progress, render, goal actions, goal form, settings, lifecycle.
+- `manifest.webmanifest` — PWA manifest (standalone display, icon).
+- `icon.svg` — app icon.
+- `sw.js` — network-first service worker so the app works offline once visited. Bump `CACHE` if the cached asset list changes.
 
-When this repository gains its first real content, revisit this file and fill in:
+## Development workflow
 
-- **Project overview** — what the project is and its purpose.
-- **Codebase structure** — key directories/files and how they relate.
-- **Development workflow** — how to install dependencies, run the project locally, build, lint, and test (exact commands).
-- **Conventions** — coding style, naming, commit message format, and any patterns specific to this repo.
-- **Architecture notes** — non-obvious design decisions, data flow, or integration points worth knowing before making changes.
+- Run locally: `python3 -m http.server 8000` in the repo root, then open `http://localhost:8000` (the service worker only registers over http(s), not `file://`).
+- There is no build, lint, or test tooling. Verify changes in a mobile-sized viewport (e.g. 390×844) and check the console for errors.
+- Deploy: any static host works (GitHub Pages, Vercel, Netlify). Serve the repo root.
 
-Until then, there are no established conventions or workflows to follow beyond standard git practices (feature branches, descriptive commit messages).
+## Data model
+
+Stored under `localStorage['winter-goals-v1']` as `{ season: {start, end}, goals: [...] }` (dates are local `YYYY-MM-DD`). A goal is one of three types:
+
+- `task` — one-off, `done: boolean`.
+- `count` — `value` toward `target`, with `unit` and `step` (amount added per tap).
+- `habit` — `log: { 'YYYY-MM-DD': true }` check-ins, `perWeek` target; progress is the rolling last 7 days.
+
+Overall progress is the average of each goal's progress (0–1). If the stored shape changes, bump the storage key or migrate in `load()`.
+
+## Conventions
+
+- Keep it dependency-free and single-page; mobile first (44px minimum tap targets, safe-area insets, light/dark via `prefers-color-scheme`).
+- Escape all user text with `esc()` before putting it in `innerHTML`.
+- Feature branches and descriptive commit messages.

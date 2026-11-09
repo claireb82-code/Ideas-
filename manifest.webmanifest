@@ -1,0 +1,14 @@
+{
+  "name": "Winter Goals",
+  "short_name": "Winter Goals",
+  "description": "Track your goals for the winter season.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#16365a",
+  "theme_color": "#16365a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

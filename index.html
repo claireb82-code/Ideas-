@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16365a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Winter Goals">
+<title>Winter Goals</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #eef4fa;
+    --card: #ffffff;
+    --ink: #12263a;
+    --muted: #55697d;
+    --line: #d6e2ee;
+    --accent: #2563b0;
+    --accent-ink: #ffffff;
+    --soft: #e3eefa;
+    --ok: #1f8a5f;
+    --danger: #b3261e;
+    --hero-a: #1b4372;
+    --hero-b: #3a7bbd;
+    --shadow: 0 1px 2px rgba(18, 38, 58, .06), 0 4px 14px rgba(18, 38, 58, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1520;
+      --card: #14263a;
+      --ink: #e7eff7;
+      --muted: #94a9bd;
+      --line: #25405b;
+      --accent: #63aef5;
+      --accent-ink: #08233f;
+      --soft: #1c3550;
+      --ok: #4cc58f;
+      --danger: #ff8a80;
+      --hero-a: #11304f;
+      --hero-b: #1f5287;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .25);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { color-scheme: light dark; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 0 16px; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(160deg, var(--hero-a), var(--hero-b));
+    color: #fff;
+    padding: calc(20px + env(safe-area-inset-top)) 0 28px;
+    border-radius: 0 0 28px 28px;
+  }
+  .hero .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .hero h1 { margin: 0; font-size: 1.5rem; letter-spacing: -.01em; }
+  .icon-btn {
+    background: rgba(255,255,255,.16); border: 0; color: #fff;
+    width: 44px; height: 44px; border-radius: 50%; font-size: 1.25rem;
+  }
+  .summary { display: flex; align-items: center; gap: 18px; margin-top: 18px; }
+  .ring { position: relative; width: 104px; height: 104px; flex: none; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 10; stroke-linecap: round; }
+  .ring .track { stroke: rgba(255,255,255,.22); }
+  .ring .bar { stroke: #fff; transition: stroke-dashoffset .5s ease; }
+  .ring .pct {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 1.6rem; font-weight: 700;
+  }
+  .ring .pct small { font-size: .9rem; font-weight: 600; opacity: .85; }
+  .season-text { min-width: 0; }
+  .season-text .big { font-size: 1.1rem; font-weight: 650; }
+  .season-text .sub { opacity: .85; font-size: .92rem; margin-top: 2px; }
+  .timeline { height: 6px; border-radius: 3px; background: rgba(255,255,255,.22); margin-top: 12px; overflow: hidden; }
+  .timeline i { display: block; height: 100%; background: rgba(255,255,255,.75); border-radius: 3px; }
+
+  /* Goals */
+  main.wrap { padding-top: 18px; }
+  .goal {
+    background: var(--card); border-radius: 18px; box-shadow: var(--shadow);
+    padding: 14px; margin-bottom: 12px; border: 1px solid transparent;
+  }
+  .goal.done { border-color: var(--ok); }
+  .goal-head { display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: 0; padding: 0; text-align: left; }
+  .badge {
+    width: 44px; height: 44px; border-radius: 14px; background: var(--soft);
+    display: grid; place-items: center; font-size: 1.5rem; flex: none;
+  }
+  .goal-title { font-weight: 650; overflow-wrap: anywhere; }
+  .goal-meta { color: var(--muted); font-size: .88rem; }
+  .goal-head .grow { flex: 1; min-width: 0; }
+  .goal-head .chev { color: var(--muted); font-size: 1.1rem; }
+  .controls { margin-top: 12px; }
+  .bar-track { height: 6px; background: var(--soft); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+  .bar-track i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .35s ease; }
+  .goal.done .bar-track i { background: var(--ok); }
+
+  .btn {
+    min-height: 44px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--card); padding: 0 16px; font-weight: 600;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .btn.danger { color: var(--danger); }
+  .btn.wide { width: 100%; }
+  .btn:active { transform: scale(.98); }
+
+  .counter { display: flex; align-items: center; gap: 10px; }
+  .counter .btn { width: 56px; padding: 0; font-size: 1.4rem; }
+  .counter .val { flex: 1; text-align: center; font-size: 1.15rem; font-weight: 650; }
+  .counter .val small { color: var(--muted); font-weight: 500; }
+
+  .dots { display: flex; justify-content: space-between; gap: 6px; }
+  .dot {
+    flex: 1; min-height: 52px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--card); display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 2px; font-size: .75rem; color: var(--muted); padding: 0;
+  }
+  .dot b { font-size: 1.05rem; line-height: 1; color: transparent; }
+  .dot.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .dot.on b { color: var(--accent-ink); }
+  .dot.today { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .habit-foot { display: flex; justify-content: space-between; color: var(--muted); font-size: .88rem; margin-top: 8px; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 28px 8px 8px; }
+  .empty h2 { margin: 0 0 4px; font-size: 1.15rem; }
+  .empty p { margin: 0 0 16px; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .chip {
+    border: 1px solid var(--line); background: var(--card); border-radius: 999px;
+    min-height: 40px; padding: 0 14px; font-size: .95rem;
+  }
+
+  /* FAB */
+  .fab {
+    position: fixed; right: max(16px, calc(50% - 304px)); bottom: calc(20px + env(safe-area-inset-bottom));
+    height: 56px; padding: 0 22px 0 18px; border-radius: 28px; border: 0;
+    background: var(--accent); color: var(--accent-ink); font-weight: 700;
+    box-shadow: 0 6px 20px rgba(0,0,0,.28); display: flex; align-items: center; gap: 8px; font-size: 1rem;
+  }
+  .fab span { font-size: 1.5rem; line-height: 1; }
+
+  /* Sheets */
+  dialog.sheet {
+    border: 0; padding: 0; background: var(--card); color: var(--ink);
+    width: 100%; max-width: 640px; margin: auto auto 0; border-radius: 22px 22px 0 0;
+    max-height: 92dvh; overflow: auto;
+  }
+  dialog.sheet::backdrop { background: rgba(5, 14, 24, .55); }
+  .sheet form, .sheet .inner { padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); }
+  .sheet h2 { margin: 0 0 14px; font-size: 1.2rem; }
+  label.field { display: block; margin-bottom: 14px; font-size: .88rem; color: var(--muted); font-weight: 600; }
+  label.field > input, label.field > select {
+    display: block; width: 100%; margin-top: 6px; min-height: 46px; padding: 0 12px;
+    border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 1rem;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label {
+    text-align: center; padding: 10px 4px; border-radius: 12px; border: 1px solid var(--line);
+    font-size: .88rem; font-weight: 600; cursor: pointer; line-height: 1.2;
+  }
+  .seg label small { display: block; font-weight: 400; color: var(--muted); font-size: .75rem; }
+  .seg input:checked + label { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .seg input:checked + label small { color: inherit; opacity: .85; }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .emojis { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .emojis input { position: absolute; opacity: 0; pointer-events: none; }
+  .emojis label {
+    width: 44px; height: 44px; display: grid; place-items: center; font-size: 1.4rem;
+    border-radius: 12px; border: 1px solid var(--line); cursor: pointer;
+  }
+  .emojis input:checked + label { background: var(--soft); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .emojis input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sheet-actions { display: flex; gap: 10px; margin-top: 6px; }
+  .sheet-actions .btn { flex: 1; }
+  .hint { color: var(--muted); font-size: .85rem; margin: -6px 0 14px; }
+  .hidden { display: none !important; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
+    background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px;
+    font-weight: 600; opacity: 0; pointer-events: none; transition: .25s; z-index: 10; max-width: 90vw;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="row">
+      <h1>❄️ Winter Goals</h1>
+      <button class="icon-btn" id="openSettings" aria-label="Settings">⚙︎</button>
+    </div>
+    <div class="summary">
+      <div class="ring" role="img" id="ringLabel">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="track" cx="50" cy="50" r="42"/>
+          <circle class="bar" id="ringBar" cx="50" cy="50" r="42" stroke-dasharray="263.9" stroke-dashoffset="263.9"/>
+        </svg>
+        <div class="pct"><span id="ringPct">0<small>%</small></span></div>
+      </div>
+      <div class="season-text">
+        <div class="big" id="seasonBig"></div>
+        <div class="sub" id="seasonSub"></div>
+        <div class="timeline"><i id="seasonBar" style="width:0%"></i></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="list"></div>
+</main>
+
+<button class="fab" id="addBtn"><span aria-hidden="true">+</span> Add goal</button>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Add / edit goal -->
+<dialog class="sheet" id="goalSheet" aria-labelledby="goalSheetTitle">
+  <form id="goalForm" method="dialog">
+    <h2 id="goalSheetTitle">New goal</h2>
+
+    <label class="field">What's the goal?
+      <input name="title" id="fTitle" required maxlength="80" autocomplete="off" placeholder="e.g. Read 6 books">
+    </label>
+
+    <div class="seg" role="radiogroup" aria-label="Goal type">
+      <input type="radio" name="type" id="t-task" value="task" checked><label for="t-task">One-off<small>do it once</small></label>
+      <input type="radio" name="type" id="t-count" value="count"><label for="t-count">Counter<small>reach a number</small></label>
+      <input type="radio" name="type" id="t-habit" value="habit"><label for="t-habit">Habit<small>repeat weekly</small></label>
+    </div>
+
+    <div id="countFields" class="hidden">
+      <div class="grid2">
+        <label class="field">Target
+          <input name="target" id="fTarget" type="number" min="1" step="any" inputmode="decimal" value="10">
+        </label>
+        <label class="field">Unit (optional)
+          <input name="unit" id="fUnit" maxlength="16" placeholder="books, miles…">
+        </label>
+      </div>
+      <label class="field">Each tap adds
+        <input name="step" id="fStep" type="number" min="0.1" step="any" inputmode="decimal" value="1">
+      </label>
+    </div>
+
+    <div id="habitFields" class="hidden">
+      <label class="field">Times per week
+        <select name="perWeek" id="fPerWeek">
+          <option value="1">1× a week</option>
+          <option value="2">2× a week</option>
+          <option value="3">3× a week</option>
+          <option value="4">4× a week</option>
+          <option value="5">5× a week</option>
+          <option value="6">6× a week</option>
+          <option value="7">Every day</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="emojis" role="radiogroup" aria-label="Icon" id="emojiPicker"></div>
+
+    <div class="sheet-actions">
+      <button type="button" class="btn danger hidden" id="deleteBtn">Delete</button>
+      <button type="button" class="btn" id="cancelBtn">Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Settings -->
+<dialog class="sheet" id="settingsSheet" aria-labelledby="settingsTitle">
+  <div class="inner">
+    <h2 id="settingsTitle">Settings</h2>
+    <div class="grid2">
+      <label class="field">Season starts
+        <input type="date" id="sStart">
+      </label>
+      <label class="field">Season ends
+        <input type="date" id="sEnd">
+      </label>
+    </div>
+    <p class="hint">Your goals are saved on this device only. Export a backup now and then.</p>
+    <div class="sheet-actions" style="margin-bottom:10px">
+      <button class="btn" id="exportBtn">Export backup</button>
+      <button class="btn" id="importBtn">Import backup</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+    <div class="sheet-actions">
+      <button class="btn danger" id="resetBtn">Erase everything</button>
+      <button class="btn primary" id="settingsDone">Done</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ---------- helpers ---------- */
+  const KEY = 'winter-goals-v1';
+  const $ = (s) => document.querySelector(s);
+  const pad = (n) => String(n).padStart(2, '0');
+  const dkey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = (k) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+  const todayKey = () => dkey(new Date());
+  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const dayDiff = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtNum = (n) => String(Math.round(n * 100) / 100);
+  const fmtDate = (k) => parse(k).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const EMOJIS = ['🏃', '📚', '🧘', '🍲', '⛷️', '🥾', '💪', '🌅', '🧣', '🎨', '🎸', '✍️', '💤', '💧', '🧠', '❄️'];
+
+  const STARTERS = [
+    { emoji: '🏃', title: 'Exercise 3× a week', type: 'habit', perWeek: 3 },
+    { emoji: '📚', title: 'Read 6 books', type: 'count', target: 6, unit: 'books', step: 1 },
+    { emoji: '🌅', title: 'Get outside daily', type: 'habit', perWeek: 7 },
+    { emoji: '⛷️', title: 'Try a winter sport', type: 'task' },
+    { emoji: '🍲', title: 'Cook 10 new recipes', type: 'count', target: 10, unit: 'recipes', step: 1 },
+    { emoji: '🧘', title: 'Meditate 5× a week', type: 'habit', perWeek: 5 },
+  ];
+
+  /* ---------- state ---------- */
+  function defaultSeason() {
+    const now = new Date();
+    const m = now.getMonth(), d = now.getDate();
+    // Jan 1 – Mar 20: we're mid-winter, which began last December.
+    // Otherwise (Mar 21 – Dec 31): this year's December is the start.
+    const midWinter = m <= 1 || (m === 2 && d <= 20);
+    const y = now.getFullYear() - (midWinter ? 1 : 0);
+    return { start: `${y}-12-01`, end: `${y + 1}-03-20` };
+  }
+
+  function load() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEY));
+      if (raw && Array.isArray(raw.goals)) return { season: raw.season || defaultSeason(), goals: raw.goals };
+    } catch (e) { /* ignore */ }
+    return { season: defaultSeason(), goals: [] };
+  }
+  let state = load();
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) { toast('Could not save — storage is full or blocked'); }
+  }
+
+  /* ---------- progress ---------- */
+  function last7() {
+    const t = new Date();
+    return Array.from({ length: 7 }, (_, i) => dkey(addDays(t, i - 6)));
+  }
+  function weekCount(g) { const log = g.log || {}; return last7().filter((k) => log[k]).length; }
+  function streak(g) {
+    const log = g.log || {};
+    let d = new Date();
+    if (!log[dkey(d)]) d = addDays(d, -1);
+    let n = 0;
+    while (log[dkey(d)]) { n++; d = addDays(d, -1); }
+    return n;
+  }
+  function pct(g) {
+    if (g.type === 'task') return g.done ? 1 : 0;
+    if (g.type === 'count') return g.target > 0 ? Math.min(1, (g.value || 0) / g.target) : 0;
+    return Math.min(1, weekCount(g) / (g.perWeek || 1));
+  }
+
+  /* ---------- render ---------- */
+  function renderHero() {
+    const gs = state.goals;
+    const avg = gs.length ? gs.reduce((s, g) => s + pct(g), 0) / gs.length : 0;
+    const p = Math.round(avg * 100);
+    $('#ringBar').style.strokeDashoffset = String(263.9 * (1 - avg));
+    $('#ringPct').innerHTML = `${p}<small>%</small>`;
+    $('#ringLabel').setAttribute('aria-label', `Overall progress ${p} percent`);
+
+    const t = todayKey();
+    const { start, end } = state.season;
+    const total = Math.max(1, dayDiff(start, end) + 1);
+    let big, sub, elapsed = 0;
+    if (t < start) {
+      const n = dayDiff(t, start);
+      big = `Winter starts in ${n} day${n === 1 ? '' : 's'}`;
+      sub = gs.length ? `${fmtDate(start)} – ${fmtDate(end)} · get set up now` : `${fmtDate(start)} – ${fmtDate(end)} · pick your goals`;
+    } else if (t > end) {
+      big = 'Winter’s wrapped up';
+      sub = `${fmtDate(start)} – ${fmtDate(end)} · nice work`;
+      elapsed = 1;
+    } else {
+      const day = dayDiff(start, t) + 1;
+      const left = total - day;
+      big = `Day ${day} of ${total}`;
+      sub = left === 0 ? 'Last day of winter!' : `${left} day${left === 1 ? '' : 's'} left`;
+      elapsed = day / total;
+    }
+    $('#seasonBig').textContent = big;
+    $('#seasonSub').textContent = sub;
+    $('#seasonBar').style.width = `${Math.round(elapsed * 100)}%`;
+  }
+
+  function card(g) {
+    const p = pct(g);
+    const done = p >= 1 && g.type !== 'habit';
+    let meta = '', body = '';
+
+    if (g.type === 'task') {
+      meta = g.done ? 'Done 🎉' : 'One-off goal';
+      body = `<button class="btn ${g.done ? '' : 'primary'} wide" data-a="toggle" data-id="${g.id}">${g.done ? '✓ Done — tap to undo' : 'Mark as done'}</button>`;
+    } else if (g.type === 'count') {
+      const unit = g.unit ? ' ' + esc(g.unit) : '';
+      meta = `${fmtNum(g.value || 0)} of ${fmtNum(g.target)}${unit}`;
+      body = `<div class="counter">
+        <button class="btn" data-a="dec" data-id="${g.id}" aria-label="Subtract ${fmtNum(g.step || 1)}">−</button>
+        <div class="val">${fmtNum(g.value || 0)} <small>/ ${fmtNum(g.target)}${unit}</small></div>
+        <button class="btn primary" data-a="inc" data-id="${g.id}" aria-label="Add ${fmtNum(g.step || 1)}">+</button>
+      </div>`;
+    } else {
+      const wc = weekCount(g), s = streak(g), t = todayKey();
+      meta = g.perWeek === 7 ? 'Every day' : `${g.perWeek}× a week`;
+      const dots = last7().map((k) => {
+        const on = !!(g.log && g.log[k]);
+        const dow = parse(k).toLocaleDateString(undefined, { weekday: 'narrow' });
+        const label = `${parse(k).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}${on ? ', done' : ''}`;
+        return `<button class="dot ${on ? 'on' : ''} ${k === t ? 'today' : ''}" data-a="day" data-id="${g.id}" data-day="${k}" aria-pressed="${on}" aria-label="${esc(label)}"><b>✓</b>${dow}</button>`;
+      }).join('');
+      body = `<div class="dots">${dots}</div>
+        <div class="habit-foot"><span>Last 7 days: <b>${wc}</b> / ${g.perWeek}</span><span>${s ? `🔥 ${s}-day streak` : 'No streak yet'}</span></div>`;
+    }
+
+    return `<section class="goal ${done ? 'done' : ''}">
+      <button class="goal-head" data-a="edit" data-id="${g.id}" aria-label="Edit ${esc(g.title)}">
+        <span class="badge" aria-hidden="true">${g.emoji || '❄️'}</span>
+        <span class="grow"><span class="goal-title">${esc(g.title)}</span><br><span class="goal-meta">${meta}</span></span>
+        <span class="chev" aria-hidden="true">⋯</span>
+      </button>
+      <div class="controls">${body}</div>
+      <div class="bar-track" aria-hidden="true"><i style="width:${Math.round(p * 100)}%"></i></div>
+    </section>`;
+  }
+
+  function renderList() {
+    const el = $('#list');
+    if (!state.goals.length) {
+      el.innerHTML = `<div class="empty">
+        <h2>No goals yet</h2>
+        <p>Tap “Add goal”, or start from an idea:</p>
+        <div class="chips">${STARTERS.map((s, i) => `<button class="chip" data-a="starter" data-i="${i}">${s.emoji} ${esc(s.title)}</button>`).join('')}</div>
+      </div>`;
+    } else {
+      el.innerHTML = state.goals.map(card).join('');
+    }
+  }
+
+  function render() { renderHero(); renderList(); }
+
+  /* ---------- toast ---------- */
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  /* ---------- goal actions ---------- */
+  const find = (id) => state.goals.find((g) => g.id === id);
+
+  function celebrateIfComplete(g, before) {
+    if (g.type !== 'habit' && before < 1 && pct(g) >= 1) toast('🎉 Goal complete!');
+  }
+
+  $('#list').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-a]');
+    if (!btn) return;
+    const a = btn.dataset.a;
+    if (a === 'starter') { openGoal(null, STARTERS[Number(btn.dataset.i)]); return; }
+    const g = find(btn.dataset.id);
+    if (!g) return;
+    const before = pct(g);
+
+    if (a === 'edit') { openGoal(g); return; }
+    if (a === 'toggle') g.done = !g.done;
+    else if (a === 'inc') g.value = Math.round(((g.value || 0) + (g.step || 1)) * 1000) / 1000;
+    else if (a === 'dec') g.value = Math.max(0, Math.round(((g.value || 0) - (g.step || 1)) * 1000) / 1000);
+    else if (a === 'day') {
+      g.log = g.log || {};
+      const k = btn.dataset.day;
+      if (g.log[k]) delete g.log[k]; else g.log[k] = true;
+    }
+    celebrateIfComplete(g, before);
+    save();
+    render();
+  });
+
+  /* ---------- goal form ---------- */
+  const sheet = $('#goalSheet');
+  const form = $('#goalForm');
+  let editingId = null;
+
+  $('#emojiPicker').innerHTML = EMOJIS.map((em, i) =>
+    `<input type="radio" name="emoji" id="em${i}" value="${em}"><label for="em${i}" aria-label="Icon ${em}">${em}</label>`).join('');
+
+  function syncType() {
+    const t = form.elements.type.value;
+    $('#countFields').classList.toggle('hidden', t !== 'count');
+    $('#habitFields').classList.toggle('hidden', t !== 'habit');
+  }
+  form.addEventListener('change', (e) => { if (e.target.name === 'type') syncType(); });
+
+  function pickEmoji(em) {
+    const radios = [...form.querySelectorAll('input[name=emoji]')];
+    const hit = radios.find((r) => r.value === em) || radios[0];
+    hit.checked = true;
+  }
+
+  function openGoal(g, preset) {
+    editingId = g ? g.id : null;
+    const src = g || preset || {};
+    $('#goalSheetTitle').textContent = g ? 'Edit goal' : 'New goal';
+    $('#deleteBtn').classList.toggle('hidden', !g);
+    $('#fTitle').value = src.title || '';
+    form.elements.type.value = src.type || 'task';
+    $('#fTarget').value = src.target || 10;
+    $('#fUnit').value = src.unit || '';
+    $('#fStep').value = src.step || 1;
+    $('#fPerWeek').value = String(src.perWeek || 3);
+    pickEmoji(src.emoji || '❄️');
+    syncType();
+    sheet.showModal();
+    if (!g && !preset) $('#fTitle').focus();
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const title = $('#fTitle').value.trim();
+    if (!title) return;
+    const type = form.elements.type.value;
+    const emoji = form.elements.emoji.value || '❄️';
+    const fields = { title, type, emoji };
+    if (type === 'count') {
+      fields.target = Math.max(0.1, parseFloat($('#fTarget').value) || 1);
+      fields.unit = $('#fUnit').value.trim();
+      fields.step = Math.max(0.1, parseFloat($('#fStep').value) || 1);
+    } else if (type === 'habit') {
+      fields.perWeek = parseInt($('#fPerWeek').value, 10) || 1;
+    }
+    if (editingId) {
+      const g = find(editingId);
+      Object.assign(g, fields);
+    } else {
+      state.goals.push({ id: uid(), created: todayKey(), value: 0, done: false, log: {}, ...fields });
+    }
+    save();
+    sheet.close();
+    render();
+  });
+
+  $('#cancelBtn').addEventListener('click', () => sheet.close());
+  $('#deleteBtn').addEventListener('click', () => {
+    const g = find(editingId);
+    if (g && confirm(`Delete “${g.title}”? This can't be undone.`)) {
+      state.goals = state.goals.filter((x) => x.id !== editingId);
+      save();
+      sheet.close();
+      render();
+    }
+  });
+  $('#addBtn').addEventListener('click', () => openGoal(null));
+
+  // tap on the backdrop closes a sheet
+  document.querySelectorAll('dialog.sheet').forEach((d) =>
+    d.addEventListener('click', (e) => { if (e.target === d) d.close(); }));
+
+  /* ---------- settings ---------- */
+  const settings = $('#settingsSheet');
+  $('#openSettings').addEventListener('click', () => {
+    $('#sStart').value = state.season.start;
+    $('#sEnd').value = state.season.end;
+    settings.showModal();
+  });
+  function applySeason() {
+    const s = $('#sStart').value, en = $('#sEnd').value;
+    if (s && en && s <= en) { state.season = { start: s, end: en }; save(); renderHero(); }
+  }
+  $('#sStart').addEventListener('change', applySeason);
+  $('#sEnd').addEventListener('change', applySeason);
+  $('#settingsDone').addEventListener('click', () => settings.close());
+
+  $('#exportBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `winter-goals-${todayKey()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $('#importBtn').addEventListener('click', () => $('#importFile').click());
+  $('#importFile').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!data || !Array.isArray(data.goals)) throw new Error('bad file');
+      if (!confirm('Replace your current goals with this backup?')) return;
+      state = { season: data.season || defaultSeason(), goals: data.goals };
+      save();
+      render();
+      settings.close();
+      toast('Backup restored');
+    } catch (err) {
+      toast('That doesn’t look like a backup file');
+    }
+  });
+  $('#resetBtn').addEventListener('click', () => {
+    if (confirm('Erase all goals and progress on this device?')) {
+      state = { season: defaultSeason(), goals: [] };
+      save();
+      render();
+      settings.close();
+    }
+  });
+
+  /* ---------- lifecycle ---------- */
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+  render();
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
