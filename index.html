@@ -132,6 +132,20 @@
   .dot.today { outline: 2px solid var(--accent); outline-offset: 1px; }
   .habit-foot { display: flex; justify-content: space-between; color: var(--muted); font-size: .88rem; margin-top: 8px; }
 
+  /* Section headings */
+  .sec { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 6px 2px 10px; }
+  .sec h2 { margin: 0; font-size: 1.05rem; }
+  .sec span { color: var(--muted); font-size: .85rem; text-align: right; }
+  .goal + .sec { margin-top: 22px; }
+
+  /* Weekly goals: last-8-weeks strip */
+  .hist { display: flex; align-items: center; gap: 4px; margin-top: 12px; }
+  .hist span { color: var(--muted); font-size: .75rem; margin-right: 4px; }
+  .hist i { width: 14px; height: 14px; border-radius: 4px; background: var(--soft); }
+  .hist i.part { background: var(--accent); opacity: .45; }
+  .hist i.full { background: var(--ok); }
+  .hist i.now { outline: 2px solid var(--accent); outline-offset: 1px; }
+
   /* Empty state */
   .empty { text-align: center; padding: 28px 8px 8px; }
   .empty h2 { margin: 0 0 4px; font-size: 1.15rem; }
@@ -167,7 +181,7 @@
   }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .grid2 > *, label.field > input { min-width: 0; }
-  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
+  .seg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 14px; }
   .seg input { position: absolute; opacity: 0; pointer-events: none; }
   .seg label {
     text-align: center; padding: 10px 4px; border-radius: 12px; border: 1px solid var(--line);
@@ -252,7 +266,8 @@
     <div class="seg" role="radiogroup" aria-label="Goal type">
       <input type="radio" name="type" id="t-task" value="task" checked><label for="t-task">One-off<small>do it once</small></label>
       <input type="radio" name="type" id="t-count" value="count"><label for="t-count">Counter<small>reach a number</small></label>
-      <input type="radio" name="type" id="t-habit" value="habit"><label for="t-habit">Habit<small>repeat weekly</small></label>
+      <input type="radio" name="type" id="t-habit" value="habit"><label for="t-habit">Habit<small>tick off days</small></label>
+      <input type="radio" name="type" id="t-weekly" value="weekly"><label for="t-weekly">Every week<small>fresh each Monday</small></label>
     </div>
 
     <div id="countFields" class="hidden">
@@ -370,7 +385,19 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtNum = (n) => String(Math.round(n * 100) / 100);
   const fmtDate = (k) => parse(k).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const EMOJIS = ['🏃', '📚', '🧘', '🍲', '⛷️', '🥾', '💪', '🌅', '🧣', '🎨', '🎸', '✍️', '💤', '💧', '🧠', '❄️'];
+  const EMOJIS = ['🏃', '📚', '🧘', '🍲', '⛷️', '🥾', '💪', '🚴', '🏊', '🌅', '🧣', '🎨', '🎸', '✍️', '💤', '💧', '🧠', '❄️'];
+
+  // Weekly goals reset every Monday. Weeks are keyed by the date of their Monday.
+  const weekStart = (d = new Date()) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+  const weekKey = (d) => dkey(weekStart(d));
+
+  // Your standing weekly routine, added once on first load (see seedWeekly). Fixed ids so
+  // that two devices adding them don't create duplicates when they sync.
+  const WEEKLY_SEED = [
+    { id: 'weekly-strength', title: 'Strength session', emoji: '💪' },
+    { id: 'weekly-zwift', title: 'Zwift', emoji: '🚴' },
+    { id: 'weekly-swim', title: 'Swim', emoji: '🏊' },
+  ];
 
   const STARTERS = [
     { emoji: '🏃', title: 'Exercise 3× a week', type: 'habit', perWeek: 3 },
@@ -401,10 +428,17 @@
     if (!g || typeof g !== 'object' || typeof g.id !== 'string' || !g.id) return null;
     const log = {};
     if (g.log && typeof g.log === 'object') for (const k of Object.keys(g.log)) if (validKey(k) && g.log[k]) log[k] = true;
+    const weeks = {};   // weekly goals: Monday date -> sessions done that week
+    if (g.weeks && typeof g.weeks === 'object') {
+      for (const k of Object.keys(g.weeks).slice(0, 120)) {
+        const n = Math.min(7, Math.floor(num(g.weeks[k], 0, 0)));
+        if (validKey(k) && n > 0) weeks[k] = n;
+      }
+    }
     return {
       id: g.id.slice(0, 64),
       title: String(g.title || 'Untitled').slice(0, 80),
-      type: ['task', 'count', 'habit'].includes(g.type) ? g.type : 'task',
+      type: ['task', 'count', 'habit', 'weekly'].includes(g.type) ? g.type : 'task',
       emoji: String(g.emoji || '❄️').slice(0, 8),
       created: validKey(g.created) ? g.created : todayKey(),
       updated: num(g.updated, 0, 0) || Date.now(),
@@ -415,6 +449,7 @@
       unit: String(g.unit || '').slice(0, 16),
       perWeek: Math.min(7, Math.max(1, Math.round(num(g.perWeek, 3)))),
       log,
+      weeks,
     };
   }
 
@@ -477,15 +512,31 @@
     while (log[dkey(d)]) { n++; d = addDays(d, -1); }
     return n;
   }
+  // Weekly goals: sessions done in the week starting on `key` (capped at the target).
+  const wkDone = (g, key = weekKey()) => Math.min(g.perWeek, (g.weeks && g.weeks[key]) || 0);
+  const wkFull = (g, key) => wkDone(g, key) >= g.perWeek;
+  // Consecutive fully-completed weeks. This week counts once it's complete; otherwise the
+  // streak is measured up to last week so it doesn't read zero on a Monday morning.
+  function weekStreak(g) {
+    let d = weekStart();
+    if (!wkFull(g, dkey(d))) d = addDays(d, -7);
+    let n = 0;
+    while (wkFull(g, dkey(d))) { n++; d = addDays(d, -7); }
+    return n;
+  }
+  const isWeekly = (g) => g.type === 'weekly';
+
   function pct(g) {
     if (g.type === 'task') return g.done ? 1 : 0;
     if (g.type === 'count') return g.target > 0 ? Math.min(1, (g.value || 0) / g.target) : 0;
+    if (g.type === 'weekly') return wkDone(g) / (g.perWeek || 1);
     return Math.min(1, weekCount(g) / (g.perWeek || 1));
   }
 
   /* ---------- render ---------- */
   function renderHero() {
-    const gs = state.goals;
+    // The ring and the season line are about your winter goals; the weekly routine has its own summary.
+    const gs = state.goals.filter((g) => !isWeekly(g));
     const avg = gs.length ? gs.reduce((s, g) => s + pct(g), 0) / gs.length : 0;
     const p = Math.round(avg * 100);
     $('#ringBar').style.strokeDashoffset = String(263.9 * (1 - avg));
@@ -556,20 +607,69 @@
     </section>`;
   }
 
-  function renderList() {
-    const el = $('#list');
-    if (!state.goals.length) {
-      el.innerHTML = `<div class="empty">
-        <h2>No goals yet</h2>
-        <p>Tap “Add goal”, or start from an idea:</p>
-        <div class="chips">${STARTERS.map((s, i) => `<button class="chip" data-a="starter" data-i="${i}">${s.emoji} ${esc(s.title)}</button>`).join('')}</div>
-      </div>`;
+  function weeklyCard(g) {
+    const done = wkFull(g);
+    const c = wkDone(g), n = g.perWeek, s = weekStreak(g);
+    const meta = `${c} / ${n} this week${s ? ` · 🔥 ${s}-week streak` : ''}`;
+
+    let body;
+    if (n === 1) {
+      body = `<button class="btn ${done ? '' : 'primary'} wide" data-a="wk" data-id="${g.id}" data-n="1">${done ? '✓ Done this week — tap to undo' : 'Mark as done'}</button>`;
     } else {
-      el.innerHTML = state.goals.map(card).join('');
+      body = `<div class="dots">${Array.from({ length: n }, (_, i) => {
+        const on = i < c;
+        return `<button class="dot ${on ? 'on' : ''}" data-a="wk" data-id="${g.id}" data-n="${i + 1}" aria-pressed="${on}" aria-label="Session ${i + 1} of ${n}${on ? ', done' : ''}"><b>✓</b>${i + 1}</button>`;
+      }).join('')}</div>`;
     }
+
+    // The last 8 weeks at a glance, oldest first (the last square is this week).
+    const mon = weekStart();
+    const hist = Array.from({ length: 8 }, (_, i) => {
+      const k = dkey(addDays(mon, (i - 7) * 7));
+      const d = wkDone(g, k);
+      const cls = d >= n ? 'full' : d > 0 ? 'part' : '';
+      return `<i class="${cls} ${i === 7 ? 'now' : ''}"></i>`;
+    }).join('');
+
+    return `<section class="goal ${done ? 'done' : ''}">
+      <button class="goal-head" data-a="edit" data-id="${g.id}" aria-label="Edit ${esc(g.title)}">
+        <span class="badge" aria-hidden="true">${esc(g.emoji || '❄️')}</span>
+        <span class="grow"><span class="goal-title">${esc(g.title)}</span><br><span class="goal-meta">${meta}</span></span>
+        <span class="chev" aria-hidden="true">⋯</span>
+      </button>
+      <div class="controls">${body}</div>
+      <div class="hist" role="img" aria-label="Last 8 weeks"><span>8 wks</span>${hist}</div>
+    </section>`;
   }
 
-  function render() { renderHero(); renderList(); }
+  function renderList() {
+    const weekly = state.goals.filter(isWeekly);
+    const winter = state.goals.filter((g) => !isWeekly(g));
+    let html = '';
+
+    if (weekly.length) {
+      const full = weekly.filter((g) => wkFull(g)).length;
+      const mon = weekStart();
+      const range = `${mon.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${addDays(mon, 6).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+      html += `<div class="sec"><h2>Every week</h2><span>${full} of ${weekly.length} done · ${range}</span></div>`;
+      html += weekly.map(weeklyCard).join('');
+    }
+
+    if (winter.length) {
+      if (weekly.length) html += `<div class="sec"><h2>Winter goals</h2></div>`;
+      html += winter.map(card).join('');
+    } else {
+      html += `<div class="empty">
+        <h2>No winter goals yet</h2>
+        <p>Tap “Add goal”, or start from an idea:</p>
+        <div class="chips">${STARTERS.map((s, i) => `<button class="chip" data-a="starter" data-i="${i}">${esc(s.emoji)} ${esc(s.title)}</button>`).join('')}</div>
+      </div>`;
+    }
+    $('#list').innerHTML = html;
+  }
+
+  let shownDay = todayKey();
+  function render() { shownDay = todayKey(); renderHero(); renderList(); }
 
   /* ---------- toast ---------- */
   let toastTimer;
@@ -585,7 +685,7 @@
   const find = (id) => state.goals.find((g) => g.id === id);
 
   function celebrateIfComplete(g, before) {
-    if (g.type !== 'habit' && before < 1 && pct(g) >= 1) toast('🎉 Goal complete!');
+    if (g.type !== 'habit' && before < 1 && pct(g) >= 1) toast(isWeekly(g) ? '✅ Done for this week!' : '🎉 Goal complete!');
   }
 
   $('#list').addEventListener('click', (e) => {
@@ -599,6 +699,13 @@
 
     if (a === 'edit') { openGoal(g); return; }
     if (a === 'toggle') g.done = !g.done;
+    else if (a === 'wk') {
+      // Tap session n: fills sessions 1..n; tapping the last filled one steps back by one.
+      g.weeks = g.weeks || {};
+      const k = weekKey(), n = Number(btn.dataset.n), cur = g.weeks[k] || 0;
+      const next = cur === n ? n - 1 : n;
+      if (next > 0) g.weeks[k] = next; else delete g.weeks[k];
+    }
     else if (a === 'inc') g.value = Math.round(((g.value || 0) + (g.step || 1)) * 1000) / 1000;
     else if (a === 'dec') g.value = Math.max(0, Math.round(((g.value || 0) - (g.step || 1)) * 1000) / 1000);
     else if (a === 'day') {
@@ -623,9 +730,14 @@
   function syncType() {
     const t = form.elements.type.value;
     $('#countFields').classList.toggle('hidden', t !== 'count');
-    $('#habitFields').classList.toggle('hidden', t !== 'habit');
+    $('#habitFields').classList.toggle('hidden', t !== 'habit' && t !== 'weekly');
   }
-  form.addEventListener('change', (e) => { if (e.target.name === 'type') syncType(); });
+  form.addEventListener('change', (e) => {
+    if (e.target.name !== 'type') return;
+    // A new weekly goal usually means "once a week"; a new habit, "a few times a week".
+    if (!editingId) $('#fPerWeek').value = e.target.value === 'weekly' ? '1' : '3';
+    syncType();
+  });
 
   function pickEmoji(em) {
     const radios = [...form.querySelectorAll('input[name=emoji]')];
@@ -661,7 +773,7 @@
       fields.target = Math.max(0.1, parseFloat($('#fTarget').value) || 1);
       fields.unit = $('#fUnit').value.trim();
       fields.step = Math.max(0.1, parseFloat($('#fStep').value) || 1);
-    } else if (type === 'habit') {
+    } else if (type === 'habit' || type === 'weekly') {
       fields.perWeek = parseInt($('#fPerWeek').value, 10) || 1;
     }
     const existing = editingId && find(editingId);
@@ -930,6 +1042,24 @@
   });
   window.addEventListener('online', () => runSync(false));
   setInterval(() => { if (!document.hidden && sync.code) runSync(false); }, 60000);
+  // Left open overnight? Roll over to the new day (and, on Mondays, the new week).
+  setInterval(() => { if (!document.hidden && todayKey() !== shownDay) render(); }, 60000);
+
+  // Add the standing weekly routine once. `updated: 1` means any real edit, on any device,
+  // beats this default when synced, and a goal you've deleted is never put back.
+  function seedWeekly() {
+    const FLAG = 'winter-goals-seed-weekly-v1';
+    try { if (localStorage.getItem(FLAG)) return; } catch (e) { return; }
+    let added = false;
+    for (const s of WEEKLY_SEED) {
+      if (find(s.id) || s.id in state.deleted) continue;
+      state.goals.push(normGoal({ ...s, type: 'weekly', perWeek: 1, updated: 1, created: todayKey() }));
+      added = true;
+    }
+    try { localStorage.setItem(FLAG, '1'); } catch (e) { /* ignore */ }
+    if (added) save();
+  }
+  seedWeekly();
   render();
   renderSync();
   if (sync.code) scheduleSync(100);

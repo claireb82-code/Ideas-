@@ -34,8 +34,13 @@ A goal has `id`, `title`, `type`, `emoji`, `created`, `updated` plus the type's 
 - `task` — `done`.
 - `count` — `value` toward `target`, with `unit` and `step` (amount added per tap).
 - `habit` — `log: { 'YYYY-MM-DD': true }` check-ins and a `perWeek` target; progress is the rolling last 7 days.
+- `weekly` — a standing routine item that starts fresh every week (weeks run Monday–Sunday, local time). `perWeek` sessions are wanted per week and `weeks: { '<Monday YYYY-MM-DD>': sessionsDone }` records history, which drives the "this week" state, the week streak and the 8-week strip. Shown in their own "Every week" section above the winter goals. Unlike `habit` (rolling 7 days, tick specific days) there is no reset logic: a new week simply has no entry.
 
-Overall progress is the average of each goal's progress (0–1). All data entering the app (storage, import, sync) goes through `normState`/`normGoal`, which coerces and bounds every field. If the shape changes, extend those and bump the storage key or migrate in `load()`.
+Overall progress (the hero ring) is the average of each *winter* goal's progress (0–1); weekly goals are excluded because they reset every Monday and have their own "x of y done" summary.
+
+**Seeded routine:** on first load `seedWeekly()` adds Strength session, Zwift and Swim (`weekly-strength`, `weekly-zwift`, `weekly-swim`, once per device, flag `winter-goals-seed-weekly-v1`). They use fixed ids and `updated: 1`, so two devices seeding don't duplicate, any real edit beats the default when synced, and a goal you deleted (tombstone) isn't re-added. To change the default routine, edit `WEEKLY_SEED`; existing users won't get new entries unless the flag key is bumped.
+
+All data entering the app (storage, import, sync) goes through `normState`/`normGoal`, which coerces and bounds every field. If the shape changes, extend those and bump the storage key or migrate in `load()`.
 
 ## Sync design
 
