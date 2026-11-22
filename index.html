@@ -159,15 +159,22 @@
   .hist-table tbody th { text-align: left; padding-left: 2px; font-size: .8rem; font-weight: 500; color: var(--muted); white-space: nowrap; }
   .hist-table tr.now th { color: var(--ink); font-weight: 700; }
   .hist-table td { height: 36px; }
-  .hist-table td span {
+  .hist-table td span, .hist-table td button.c {
     display: grid; place-items: center; height: 32px; margin: 0 2px; border-radius: 8px;
     font-weight: 600; color: var(--muted);
   }
-  .hist-table span.full { background: var(--ok); color: var(--ok-ink); }
-  .hist-table span.part { background: var(--soft); color: var(--ink); box-shadow: inset 0 0 0 2px var(--accent); }
-  .hist-table span.miss { color: var(--danger); box-shadow: inset 0 0 0 1px var(--line); }
-  .hist-table span.open { box-shadow: inset 0 0 0 2px var(--accent); }
-  .hist-table span.future, .hist-table span.na { opacity: .4; font-weight: 400; }
+  /* Past and current weeks are buttons (tap to change); upcoming weeks and "All" are plain spans */
+  .hist-table td button.c { width: calc(100% - 4px); padding: 0; border: 0; background: transparent; font: inherit; font-weight: 600; cursor: pointer; }
+  .hist-table td button.c:active { transform: scale(.94); }
+  .hist-table td button.c:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hist-table .c.full { background: var(--ok); color: var(--ok-ink); }
+  .hist-table .c.part { background: var(--soft); color: var(--ink); box-shadow: inset 0 0 0 2px var(--accent); }
+  .hist-table .c.miss { color: var(--danger); box-shadow: inset 0 0 0 1px var(--line); }
+  .hist-table .c.open { box-shadow: inset 0 0 0 2px var(--accent); }
+  .hist-table .c.future { opacity: .4; font-weight: 400; }
+  .hist-table .c.na { opacity: .55; font-weight: 400; }
+  .hist-table tr.more td { height: auto; padding: 2px 2px 4px; }
+  .hist-table tr.more .btn { width: 100%; min-height: 40px; font-size: .85rem; }
   .hist-table tr.sum td { height: auto; }
   .hist-table tr.sum td span { height: auto; padding: 5px 0; line-height: 1.15; background: var(--soft); color: var(--ink); font-weight: 700; box-shadow: none; opacity: 1; }
   .hist-table tr.sum td span small { display: block; font-size: .68rem; font-weight: 500; color: var(--muted); }
@@ -342,7 +349,7 @@
     <h2 id="historyTitle">Season history</h2>
     <p class="hint" id="historyHint"></p>
     <div class="hist-wrap" id="historyBody"></div>
-    <p class="hint" style="margin:12px 0 14px">✓ hit · 1/2 partly there · ✕ missed · ○ this week so far · weeks run Mon–Sun and count once you’ve added the goal.</p>
+    <p class="hint" style="margin:12px 0 14px">✓ hit · 1/2 partly there · ✕ missed · ○ this week so far. <b>Tap a week to change it</b> (each tap adds a session), and use “Earlier weeks” to go back further. Weeks run Mon–Sun; weeks before you added a goal don’t count against it unless you log something in them.</p>
     <div class="sheet-actions"><button class="btn primary" id="historyDone">Done</button></div>
   </div>
 </dialog>
@@ -715,6 +722,7 @@
   // One row per week of the season, one column per weekly goal. A week is a "hit" when the
   // goal's sessions reached its target. Weeks before you added a goal don't count against
   // it, and the current week only counts once it's hit (it isn't over yet).
+  let historyBack = 0;   // extra weeks shown before the start ("Earlier weeks" button)
   function renderHistory() {
     const weekly = state.goals.filter(isWeekly);
     const cur = weekKey();
@@ -724,6 +732,7 @@
     let first = weekKey(parse(state.season.start)), last = weekKey(parse(state.season.end));
     if (cur < first) first = cur;
     for (const g of weekly) for (const k of Object.keys(g.weeks || {})) { if (k < first) first = k; if (k > last) last = k; }
+    first = dkey(addDays(parse(first), -7 * historyBack));
     let keys = [];
     for (let d = parse(first); dkey(d) <= last; d = addDays(d, 7)) keys.push(dkey(d));
     if (keys.length > 60) keys = keys.filter((k) => Math.abs(dayDiff(cur, k)) <= 182);
@@ -733,7 +742,7 @@
       let hit = 0, tracked = 0, run = 0, best = 0;
       const cells = keys.map((k) => {
         const d = (g.weeks && g.weeks[k]) || 0, n = g.perWeek;
-        if (k < created) return { st: 'na' };
+        if (k < created && d === 0) return { st: 'na' };   // before you added it (unless you've logged it)
         if (k > cur) return { st: 'future' };
         if (d >= n) { hit++; tracked++; run++; best = Math.max(best, run); return { st: 'full', d: n, n }; }
         if (k === cur) return { st: d > 0 ? 'part' : 'open', d, n };          // still in progress
@@ -763,16 +772,21 @@
 
     const SYM = { full: '✓', miss: '✕', open: '○', future: '·', na: '–' };
     const WORD = { full: 'hit', miss: 'missed', open: 'in progress', future: 'upcoming', na: 'not tracked yet' };
-    const cell = (c, week, what) => {
+    // `edit` ({g, k}) makes a past or current week tappable; upcoming weeks can't be logged.
+    const cell = (c, week, what, edit) => {
       const text = SYM[c.st] || `${c.d}/${c.n}`;
       const word = WORD[c.st] || `${c.d} of ${c.n}`;
-      return `<td aria-label="${esc(`${what}, week of ${week}: ${word}`)}"><span class="${c.st}">${text}</span></td>`;
+      const label = `${what}, week of ${week}: ${word}`;
+      if (edit && c.st !== 'future') {
+        return `<td><button type="button" class="c ${c.st}" data-g="${esc(edit.g)}" data-k="${edit.k}" aria-label="${esc(label + '. Tap to change')}">${text}</button></td>`;
+      }
+      return `<td aria-label="${esc(label)}"><span class="c ${c.st}">${text}</span></td>`;
     };
     const pctOf = (h, t) => (t ? `${Math.round((h / t) * 100)}%` : '–');
     const colspan = weekly.length + 2;
 
     $('#historyHint').textContent = allTracked
-      ? `${fmtDate(state.season.start)} – ${fmtDate(state.season.end)} · every weekly goal hit in ${allHit} of ${allTracked} weeks so far`
+      ? `${fmtDate(state.season.start)} – ${fmtDate(state.season.end)} · every weekly goal hit in ${allHit} of ${allTracked} week${allTracked === 1 ? '' : 's'} so far`
       : 'Nothing to compare yet. Your first finished week will show up here.';
 
     $('#historyBody').innerHTML = `<table class="hist-table">
@@ -785,15 +799,17 @@
         <tr class="sum"><th scope="row">Hit</th>${info.map((x) => `<td><span>${x.hit}/${x.tracked} <small>${pctOf(x.hit, x.tracked)}</small></span></td>`).join('')}<td><span>${allHit}/${allTracked} <small>${pctOf(allHit, allTracked)}</small></span></td></tr>
         <tr class="sum"><th scope="row">Best run</th>${info.map((x) => `<td><span>🔥 ${x.best}</span></td>`).join('')}<td><span>🔥 ${bestAll}</span></td></tr>
         <tr class="gap"><td colspan="${colspan}"></td></tr>
+        ${historyBack < 26 ? `<tr class="more"><td colspan="${colspan}"><button type="button" class="btn" data-more="1">↑ Earlier weeks</button></td></tr>` : ''}
         ${rows.map((r) => `<tr class="${r.k === cur ? 'now' : ''}"${r.k === cur ? ' aria-current="date"' : ''}>
           <th scope="row">${esc(fmtDate(r.k))}</th>
-          ${r.cs.map((c, i) => cell(c, fmtDate(r.k), info[i].g.title)).join('')}
+          ${r.cs.map((c, i) => cell(c, fmtDate(r.k), info[i].g.title, { g: info[i].g.id, k: r.k })).join('')}
           ${cell(r.all, fmtDate(r.k), 'All weekly goals')}
         </tr>`).join('')}
       </tbody></table>`;
   }
 
   function openHistory() {
+    historyBack = 0;
     renderHistory();
     $('#historySheet').showModal();
     // Keep the totals at the top in view; only scroll if the current week would be off-screen
@@ -801,6 +817,27 @@
     requestAnimationFrame(() => { const row = $('#historyBody tr.now'); if (row) row.scrollIntoView({ block: 'nearest' }); });
   }
   $('#historyDone').addEventListener('click', () => $('#historySheet').close());
+
+  // Tap a week to change it: each tap adds a session, wrapping back to none after the target.
+  // This is how you fill in a week you forgot to tick off (or that was before you used the app).
+  $('#historyBody').addEventListener('click', (e) => {
+    if (e.target.closest('[data-more]')) { historyBack = Math.min(26, historyBack + 4); renderHistory(); return; }
+    const b = e.target.closest('button[data-g]');
+    const g = b && find(b.dataset.g);
+    if (!g) return;
+    const k = b.dataset.k;
+    const cur = (g.weeks && g.weeks[k]) || 0;
+    const next = cur >= g.perWeek ? 0 : cur + 1;
+    g.weeks = g.weeks || {};
+    if (next > 0) g.weeks[k] = next; else delete g.weeks[k];
+    touch(g);
+    save();
+    render();
+    renderHistory();
+    // the table was rebuilt: put keyboard focus back on the same cell
+    const again = [...$('#historyBody').querySelectorAll('button[data-g]')].find((x) => x.dataset.g === g.id && x.dataset.k === k);
+    if (again) again.focus({ preventScroll: true });
+  });
 
   /* ---------- toast ---------- */
   let toastTimer;
