@@ -10,6 +10,7 @@ Hosted on Vercel (team `claireb82`, project `winter-goals`, production branch `m
 
 ## Codebase structure
 
+- `README.md` — user-facing overview (features, installing, sync, backups) plus a short developer section. Keep it in step with the app when features change; the detailed technical notes live here in `CLAUDE.md`.
 - `index.html` — the entire front end (inline CSS + JS). Script sections: helpers, state (normalisation, save), progress, render, goal actions, goal form, settings, sync, lifecycle.
 - `api/sync.js` — Vercel Node function: `GET`/`POST /api/sync`. Reads/writes one JSON blob per sync code, merging on write with an ETag (`ifMatch`) retry loop.
 - `api/_merge.js` — pure merge logic (no I/O). The leading underscore keeps Vercel from exposing it as a route.
